@@ -1,0 +1,188 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Visualization</title>
+    <style>
+        #graph {
+            width: 100%;
+            height: 800px;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+    </style>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+
+<body>
+    <div>
+        <label for="dataInput">Input Data:</label>
+        <textarea id="dataInput" rows="5" cols="50" value="">
+(ExporterImpl: {renderers=(ExporterFrameRenderer: {clock_position=PT34.766667S, renderers=(MediaCompositionRenderer: {clock_position=PT34.766667S, chain=(TextureProcessorChain: {frames_received=1043, frames_released=1042, permits=0, processors=[(BaseTextureProcessor: {frames_received=1043, frames_released=0, frames_produced=1043})], source=(AdapterTextureSource: {})}), renderers=[(SegmentRenderer: {live_renderer=}), (VideoSegmentRenderer: {live_renderer=}), (VideoSegmentRenderer: {live_renderer=(LiveRenderer: {chain=(TextureProcessorChain: {frames_received=521, frames_released=520, permits=1, processors=[(BaseTextureProcessor: {frames_received=521, frames_released=0, frames_produced=521}), (EffectsTextureProcessor: {frames_received=521, frames_released=0, frames_produced=521}), (BaseTextureProcessor: {frames_received=521, frames_released=0, frames_produced=521})], source=(ExoPlayerTextureSource: {frames_produced=521, frames_released=0, source_adapter=(SurfaceTextureSourceAdapter: {frames_received=521, frames_released=0, frames_produced=521, permits=1})})})})}), (VideoSegmentRenderer: {live_renderer=}), (VideoSegmentRenderer: {live_renderer=(LiveRenderer: {chain=(TextureProcessorChain: {frames_received=785, frames_released=783, permits=0, processors=[(BaseTextureProcessor: {frames_received=785, frames_released=0, frames_produced=785}), (EffectsTextureProcessor: {frames_received=785, frames_released=0, frames_produced=785}), (BaseTextureProcessor: {frames_received=785, frames_released=0, frames_produced=785})], source=(ExoPlayerTextureSource: {frames_produced=785, frames_released=0, source_adapter=(SurfaceTextureSourceAdapter: {frames_received=785, frames_released=0, frames_produced=785, permits=1})})})})})]})}), encoder=(TransformerEncoder: {frames_received=1044, frames_released=1, frames_consumed=1043})})
+
+
+</textarea>
+        <button onclick="parseData()">Parse Data</button>
+    </div>
+
+    <div id="graph"></div>
+
+    <script>
+        function parseData() {
+            inputData = document.getElementById('dataInput').value;
+            //   inputData = "(MediaCompositionRenderer: {clock_position=PT4.633333S, chain=(UNKNOWN: {frames_received=140, frames_released=134, permits=0, processors=[(BaseTextureProcessor: {frames_received=140, frames_released=0, frames_produced=140})], source=com.google.android.libraries.video.mediaengine.textures.sources.AdapterTextureSource@f7f2547}), renderers=[(VideoSegmentRenderer: {live_renderer=}), (SegmentRenderer: {live_renderer=(SegmentRenderer: {chain=(UNKNOWN: {frames_received=1, frames_released=0, permits=0, processors=[(BaseTextureProcessor: {frames_received=1, frames_released=0, frames_produced=1}), (BaseTextureProcessor: {frames_received=1, frames_released=0, frames_produced=1})], source=com.google.android.libraries.video.mediaengine.textures.sources.ImageTextureSource@268b174})})}), (VideoSegmentRenderer: {live_renderer=}), (VideoSegmentRenderer: {live_renderer=}), (VideoSegmentRenderer: {live_renderer=(SegmentRenderer: {chain=(UNKNOWN: {frames_received=125, frames_released=116, permits=0, processors=[(BaseTextureProcessor: {frames_received=126, frames_released=0, frames_produced=126}), (BaseTextureProcessor: {frames_received=126, frames_released=0, frames_produced=125}), (BaseTextureProcessor: {frames_received=125, frames_released=0, frames_produced=125}), (BaseTextureProcessor: {frames_received=125, frames_released=0, frames_produced=125})], source=com.google.android.libraries.video.mediaengine.textures.sources.video.ExoPlayerTextureSource@5d169d})})})]})";
+            const graphData = parseInputData(inputData);
+
+            // Create a network
+            const container = document.getElementById('graph');
+            const options = {
+                nodes: {
+                    shape: 'box',
+                    font: {
+                        // required: enables displaying <b>text</b> in the label as bold text
+                        multi: 'html',
+                        // optional: use this if you want to specify the font of bold text
+                        bold: '16px arial black'
+                    }
+                },
+                edges: {
+                    length: 200 // Longer edges between nodes.
+                },
+                physics: {
+                    solver: "repulsion",
+                    repulsion: {
+                        nodeDistance: 100 // Put more distance between the nodes.
+                    }
+                }
+            };
+            const network = new vis.Network(container, graphData, options);
+        }
+
+        function parseInputData(inputData) {
+            const graphData = { nodes: [], edges: [] };
+
+            // Split input data into components
+            const components = inputData.split(/[()]/);
+            components.shift()
+
+            let stack = []
+
+            let nodeData = {}
+
+            components.forEach(component => {
+                // Extract component name and properties
+                const [name, properties] = component.split(': {');
+                if (properties !== undefined) {
+                    const nodeId = graphData.nodes.length + 1;
+                    stack.push(nodeId)
+                    const nodeLabel = `<b>${name.trim()}</b>\n`;
+                    graphData.nodes.push({ id: nodeId, label: nodeLabel, shape: 'box'});
+                    // Create edge connecting nodes
+                    if (graphData.nodes.length > 1) {
+                        graphData.edges.push({ from: stack[stack.length - 2], to: nodeId });
+                    }
+                } else {
+                    stack.pop()
+                }
+
+                const node = graphData.nodes[graphData.nodes.length - 1];
+                const actualProperties = properties !== undefined ? properties : name;
+                const attributes = actualProperties.replace(/[}\]\[]+$/, '').split(', ')
+                    .filter(attr => (attr.split('=').length > 1 && attr.split('=')[1].length > 0));
+
+                if (node.engine_attrs == undefined) {
+                    node.engine_attrs = {}
+                }
+                node.engine_attrs = Object.assign({}, inlineAttributesToDict(attributes), node.engine_attrs);
+                node.label += attributes.join("\n") + "\n";
+            });
+
+            graphData.nodes.forEach(node => {
+                node.label = node.label.trim();
+
+                <!--const flow = calculateNodeFlow(node.engine_attrs)-->
+                <!--if (shouldShowNodeFlow(node.engine_attrs) && flow != 0) {-->
+                    <!--node.label += "\n FLOW: <b>" + calculateNodeFlow(node.engine_attrs) + "</b>";-->
+                <!--} else {-->
+                    <!--console.log("Not showing for " + node.label + ", because " + node.engine_attrs);-->
+                <!--}-->
+
+                <!--node.group = getGroupByFlow(calculateNodeFlow(node.engine_attrs));-->
+            });
+
+            return graphData;
+        }
+
+        function inlineAttributesToDict(attrs) {
+            let dictionary = {};
+
+            for (let item of attrs) {
+                let [key, value] = item.split('=');
+                dictionary[key] = parseInt(value); // Convert value to integer if needed
+            }
+            return dictionary;
+
+        }
+
+        function shouldShowNodeFlow(attrs) {
+            return attrs['frames_received'] !== undefined ||
+                attrs['frames_consumed'] !== undefined ||
+                attrs['frames_released'] !== undefined ||
+                attrs['frames_produced'] !== undefined;
+        }
+
+        function calculateNodeFlow(attrs) {
+            let framesIn = 0;
+            let framesOut = 0;
+
+            if (attrs['frames_received'] !== undefined) {
+                framesIn += Number(attrs['frames_received']);
+            }
+            if (attrs['frames_consumed'] !== undefined) {
+                framesIn += Number(attrs['frames_consumed']);
+            }
+            if (attrs['frames_released'] !== undefined) {
+                framesOut += Number(attrs['frames_released']);
+            }
+            if (attrs['frames_produced'] !== undefined) {
+                framesOut += Number(attrs['frames_produced']);
+            }
+
+            return framesOut - framesIn;
+        }
+
+        function getGroupByName(name) {
+            if (name.endsWith('Chain')) {
+                return 'chain';
+            }
+            if (name.endsWith('TextureProcessor')) {
+                return 'texture processor';
+            }
+            if (name.endsWith('Source')) {
+                return 'source';
+            }
+            if (name.endsWith('Renderer')) {
+                return 'renderer';
+            }
+            if (name == "PlayerImpl" || name == "ExporterImpl") {
+                return 'service';
+            }
+            return "default";
+        }
+
+        function getGroupByFlow(flow) {
+            if (flow > 0) {
+                return 'source';
+            } else if (flow < 0) {
+                return 'sink';
+            }
+            return 'default';
+        }
+
+    </script>
+</body>
+
+</html>
